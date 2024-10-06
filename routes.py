@@ -21,7 +21,10 @@ def index():
 
 @test.route('/get_markers', methods=['GET'])
 def get_markers():
-    return "fetched"
+    markers_dict = {}
+    for element in db.markers.find():
+        markers_dict[element['_id']] = element
+    return markers_dict
 
 
 @test.route('/get_difference', methods=['POST'])
