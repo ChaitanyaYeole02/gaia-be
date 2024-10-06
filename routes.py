@@ -145,6 +145,7 @@ def add_task():
         description = request.values['description']
         marker_id = request.values['markerId']
         task_id = request.values['taskId']
+        user_id = request.values['userId']
 
         return {}
     except Exception as e:
