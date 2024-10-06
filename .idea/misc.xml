@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Black">
+    <option name="sdkName" value="Python 3.12 (earth-helper-be)" />
+  </component>
+  <component name="GithubDefaultAccount">
+    <option name="defaultAccountId" value="b77a424b-42dd-43a4-b999-73f1646d559c" />
+  </component>
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12 (earth-helper-be)" project-jdk-type="Python SDK" />
+</project>
