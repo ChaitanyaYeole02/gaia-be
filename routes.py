@@ -1,9 +1,8 @@
+import ast
 import os
-import json
 import tempfile
 
 import google.generativeai as genai
-import requests
 
 from flask import Blueprint, jsonify, request
 from dotenv import load_dotenv
@@ -90,7 +89,6 @@ def get_marker_info():
                                    completed_tasks]
         info['incompleted_tasks'] = [{'task_id': task['id'], 'task_name': task['taskName']} for task in
                                      incomplete_tasks]
-        print(info)
 
         return info
 
@@ -99,39 +97,60 @@ def get_marker_info():
         return jsonify({"error": str(e)}), 500
 
 
-@test.route('/get_difference', methods=['POST'])
-def get_difference():
+@test.route('/get_user_tasks', methods=['GET'])
+def get_user_tasks():
     try:
-        before_image = request.files['before_image']
-        after_image = request.files['after_image']
+        user_id = request.args.get('user_id')
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(before_image.filename)[1],
-                                         dir=UPLOAD_FOLDER) as temp_before:
-            before_image.save(temp_before.name)
-            before_image_path = temp_before.name
+        pipeline = [
+            {
+                '$match': {
+                    'user_id': user_id
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'markers',
+                    'localField': 'marker_id',
+                    'foreignField': '_id',
+                    'as': 'marker_info'
+                }
+            },
+            {
+                '$unwind': {
+                    'path': '$marker_info',
+                    'preserveNullAndEmptyArrays': True
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'tasks',
+                    'localField': 'task_id',
+                    'foreignField': 'id',
+                    'as': 'task_info'
+                }
+            },
+            {
+                '$unwind': {
+                    'path': '$task_info',
+                    'preserveNullAndEmptyArrays': True
+                }
+            },
+            {
+                '$project': {
+                    '_id': 0,
+                    'description': 1,
+                    'location': '$marker_info.description',
+                    'task_name': '$task_info.taskName',
+                    'points': 1
+                }
+            }
+        ]
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(after_image.filename)[1],
-                                         dir=UPLOAD_FOLDER) as temp_before:
-            after_image.save(temp_before.name)
-            after_image_path = temp_before.name
+        user_tasks_cursor = db.user_tasks.aggregate(pipeline)
+        user_tasks = list(user_tasks_cursor)
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        before_image = genai.upload_file(path=before_image_path)
-        after_image = genai.upload_file(path=after_image_path)
-
-        response = model.generate_content([
-            before_image,
-            after_image, "\n\n",
-            "Compare these two images then check their differences and tell me if the person has done anything "
-            "good for the environment. \n "
-            "If yes or no then provide me an answer yes or no and a small description of what the person did. \n"
-            "Provide me the final answer in a dictionary format like {'answer': 'Yes', 'description': ''}"
-        ])
-
-        os.unlink(before_image_path)
-        os.unlink(after_image_path)
-
-        return jsonify(response.text), 200
+        return user_tasks
     except Exception as e:
         print(f"An exception occurred: {e}")
         return jsonify({"error": str(e)}), 500
@@ -147,8 +166,68 @@ def add_task():
         task_id = request.values['taskId']
         user_id = request.values['userId']
 
-        return {}
+        answer, gemini_description = get_images_difference(before_image, after_image, description)
+
+        if answer == 'No':
+            return jsonify({
+                "answer": answer,
+                "description": gemini_description
+            })
+        else:
+            doc = {
+                'marker_id': marker_id,
+                'task_id': task_id,
+                'user_id': user_id,
+                'description': description,
+                'status': 'completed',
+                'points': 10
+            }
+            db.user_tasks.insert_one(doc)
+
+            return jsonify({
+                "answer": answer,
+                "description": gemini_description
+            })
     except Exception as e:
         print(f"An exception occurred: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+def get_images_difference(before_image, after_image, description):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(before_image.filename)[1],
+                                     dir=UPLOAD_FOLDER) as temp_before:
+        before_image.save(temp_before.name)
+        before_image_path = temp_before.name
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(after_image.filename)[1],
+                                     dir=UPLOAD_FOLDER) as temp_before:
+        after_image.save(temp_before.name)
+        after_image_path = temp_before.name
+
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    before_image = genai.upload_file(path=before_image_path)
+    after_image = genai.upload_file(path=after_image_path)
+
+    response = model.generate_content([
+        before_image,
+        after_image,
+        description,
+        "\n\n",
+        "Compare these two images then check their differences and tell me if the person has done anything "
+        "good for the environment. Also check if the description provided matches with the image. \n "
+        "If yes or no then provide me an answer yes or no and a small description of what the person did. \n"
+        "Provide me the final answer in a dictionary format like {'answer': 'Yes', 'description': ''}"
+    ])
+
+    os.unlink(before_image_path)
+    os.unlink(after_image_path)
+
+    decoded_str = jsonify(response.text)
+    decoded_str = decoded_str.response[0].decode('utf-8')
+    cleaned_str = decoded_str.strip().strip('"').strip()
+    if cleaned_str.endswith('\\n'):
+        cleaned_str = cleaned_str[:-2].strip()
+    result = ast.literal_eval(cleaned_str)
+
+    return result['answer'], result['description']
  
