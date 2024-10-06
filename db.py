@@ -2,7 +2,6 @@ from flask import g
 from flask_pymongo import PyMongo
 from werkzeug.local import LocalProxy
 
-# Initialize PyMongo
 mongo = PyMongo()
 
 
@@ -24,5 +23,4 @@ def get_db():
     return g.db
 
 
-# Use LocalProxy to access the global db instance as `db`
 db = LocalProxy(get_db)
