@@ -1,7 +1,7 @@
 import os 
 import configparser
 from flask import Flask 
-# from .db import init_db  
+from db import init_db  
 from routes import test
 
 def create_app():
@@ -10,7 +10,9 @@ def create_app():
     config.read(os.path.abspath(os.path.join('config.ini')))
 
     # Configure Flask MongoDB URI
-    app.config['MONGO_URI'] = "mongodb+srv://quynhho1601:dXWBa84LToNdQs8q@cluster0.rt183.mongodb.net/"
+    app.config['MONGO_URI'] = "mongodb+srv://quynhho1601:dXWBa84LToNdQs8q@cluster0.rt183.mongodb.net/earth-helper"
+
+    init_db(app)
 
     # Initialize additional configurations or extensions here
     with app.app_context():

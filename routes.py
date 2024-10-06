@@ -1,4 +1,6 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint
+from flask.json import jsonify
+from flask_pymongo import PyMongo
 from db import db  # Import the global `db` object
 
 test = Blueprint('test', __name__)
@@ -10,8 +12,9 @@ def index():
 
 @test.route('/get_markers', methods=['GET'])
 def get_markers():
-    # Get the data from mongo
-    # jsonify and return it back
-    return "fetched"
+    markers_dict = {}
+    for element in db.markers.find():
+        markers_dict[element['_id']] = element
+    return markers_dict
 
  
