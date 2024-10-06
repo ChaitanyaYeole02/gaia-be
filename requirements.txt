@@ -3,3 +3,4 @@ Flask-PyMongo
 pymongo
 Flask
 google-generativeai
+flask-cors
